@@ -1,0 +1,5 @@
+# Freebuff workspace (log preview, id internal)
+.freebuff/
+
+# macOS
+.DS_Store
