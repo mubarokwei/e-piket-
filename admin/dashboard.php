@@ -213,8 +213,9 @@ $total_monitoring = $hadir_count + $terlambat_count + $tidak_hadir_count;
                                     ?>
                                     <span class="badge <?= $statusClass ?>"><?= $statusLabel ?></span>
                                 </td>
-                                <?php $jm_masuk = $m['jadwal_mulai'] ?: ($m['jam_mengajar_mulai'] ?? ''); ?>
-                                <?php $jm_selesai = $m['jadwal_selesai'] ?: ($m['jam_mengajar_selesai'] ?? ''); ?>
+                                <?php // Utamakan jam terekam (1 entri per blok JP), fallback ke slot jadwal
+                                $jm_masuk = $m['jam_mengajar_mulai'] ?: ($m['jadwal_mulai'] ?? '');
+                                $jm_selesai = $m['jam_mengajar_selesai'] ?: ($m['jadwal_selesai'] ?? ''); ?>
                                 <td class="jam-mengajar"><?= $jm_masuk ? formatJam($jm_masuk) : '-' ?></td>
                                 <td class="jam-mengajar"><?= $jm_selesai ? formatJam($jm_selesai) : '-' ?></td>
                             </tr>
