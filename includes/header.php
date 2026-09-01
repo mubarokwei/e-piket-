@@ -15,6 +15,33 @@ if (!isset($_SESSION['user_id'])) {
 
 $current_page = basename($_SERVER['PHP_SELF'], '.php');
 $current_dir = basename(dirname($_SERVER['PHP_SELF']));
+
+// =============================================
+// Otorisasi Role-Based Access Control (RBAC)
+// =============================================
+$current_role = $_SESSION['role'] ?? 'guru';
+
+// Peta akses halaman per role
+$page_access = [
+    'dashboard'        => ['admin', 'guru_piket', 'guru'],
+    'guru'             => ['admin'],
+    'mapel'            => ['admin'],
+    'kelas'            => ['admin'],
+    'jadwal'           => ['admin', 'guru_piket', 'guru'],
+    'jadwal-piket'     => ['admin', 'guru_piket'],
+    'absensi'          => ['admin', 'guru_piket'],
+    'laporan-mengajar' => ['admin', 'guru_piket', 'guru'],
+    'laporan-absensi'  => ['admin', 'guru_piket', 'guru'],
+    'monitoring'       => ['admin', 'guru_piket'],
+    'kelas-kosong'     => ['admin', 'guru_piket'],
+    'users'            => ['admin'],
+];
+
+// Cek akses halaman yang sedang dibuka (termasuk request POST/GET apa pun)
+if (isset($page_access[$current_page]) && !in_array($current_role, $page_access[$current_page], true)) {
+    flash('danger', 'Anda tidak memiliki akses ke halaman ' . ucfirst(str_replace('-', ' ', $current_page)) . '.');
+    redirect(BASE_URL . '/admin/dashboard.php');
+}
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -59,6 +86,7 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
                     </a>
                 </li>
                 
+                <?php if ($current_role === 'admin'): ?>
                 <li class="nav-section">Manajemen</li>
                 
                 <li class="nav-item <?= ($current_dir === 'guru') ? 'active' : '' ?>">
@@ -81,6 +109,7 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
                         <span>Kelas</span>
                     </a>
                 </li>
+                <?php endif; ?>
                 
                 <li class="nav-section">Jadwal</li>
                 
@@ -91,21 +120,25 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
                     </a>
                 </li>
                 
+                <?php if ($current_role !== 'guru'): ?>
                 <li class="nav-item <?= ($current_page === 'jadwal-piket') ? 'active' : '' ?>">
                     <a href="<?= BASE_URL ?>/admin/jadwal-piket.php">
                         <i class="bi bi-person-badge-fill"></i>
                         <span>Jadwal Piket</span>
                     </a>
                 </li>
+                <?php endif; ?>
                 
                 <li class="nav-section">Absensi & Laporan</li>
                 
+                <?php if ($current_role !== 'guru'): ?>
                 <li class="nav-item <?= ($current_dir === 'absensi') ? 'active' : '' ?>">
                     <a href="<?= BASE_URL ?>/admin/absensi.php">
                         <i class="bi bi-person-check-fill"></i>
                         <span>Absensi Guru Mengajar</span>
                     </a>
                 </li>
+                <?php endif; ?>
                 
                 <li class="nav-item <?= ($current_page === 'laporan-mengajar') ? 'active' : '' ?>">
                     <a href="<?= BASE_URL ?>/admin/laporan-mengajar.php">
@@ -121,20 +154,25 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
                     </a>
                 </li>
                 
+                <?php if ($current_role !== 'guru'): ?>
                 <li class="nav-item <?= ($current_dir === 'monitoring') ? 'active' : '' ?>">
                     <a href="<?= BASE_URL ?>/admin/monitoring.php">
                         <i class="bi bi-eye-fill"></i>
                         <span>Monitoring Guru</span>
                     </a>
                 </li>
+                <?php endif; ?>
                 
+                <?php if ($current_role !== 'guru'): ?>
                 <li class="nav-item <?= ($current_page === 'kelas-kosong') ? 'active' : '' ?>">
                     <a href="<?= BASE_URL ?>/admin/kelas-kosong.php">
                         <i class="bi bi-door-open-fill"></i>
                         <span>Kelas Kosong</span>
                     </a>
                 </li>
+                <?php endif; ?>
                 
+                <?php if ($current_role === 'admin'): ?>
                 <li class="nav-section">Sistem</li>
                 
                 <li class="nav-item <?= ($current_page === 'users') ? 'active' : '' ?>">
@@ -143,6 +181,7 @@ $current_dir = basename(dirname($_SERVER['PHP_SELF']));
                         <span>Pengguna</span>
                     </a>
                 </li>
+                <?php endif; ?>
             </ul>
         </nav>
         

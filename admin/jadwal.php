@@ -6,6 +6,13 @@ require_once __DIR__ . '/../includes/header.php';
 $conn = getDB();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Role Guru hanya boleh MELIHAT jadwal, tidak boleh menambah/menghapus
+    if (($current_role ?? '') === 'guru') {
+        $msg = 'Role Guru hanya dapat melihat jadwal (tidak boleh menambah/menghapus).';
+        flash('danger', $msg);
+        if (isAjax()) jsonOut(['success' => false, 'message' => $msg]);
+        redirect('jadwal.php');
+    }
     $action = $_POST['action'] ?? '';
     
     if ($action === 'add') {
@@ -216,9 +223,11 @@ $countAll = count($jadwal_list);
             </select>
             <input type="text" class="form-control" name="search" placeholder="Cari guru / kelas / mapel..." value="<?= htmlspecialchars($search) ?>" style="width:220px;">
         </form>
+        <?php if ($current_role !== 'guru'): ?>
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal">
             <i class="bi bi-plus-lg me-1"></i>Tambah Jadwal
         </button>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -247,9 +256,11 @@ $countAll = count($jadwal_list);
             <i class="bi bi-calendar-x"></i>
             <h5>Tidak ada jadwal</h5>
             <p class="mb-3">Belum ada jadwal mengajar untuk filter ini.</p>
+            <?php if ($current_role !== 'guru'): ?>
             <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addModal">
                 <i class="bi bi-plus-lg me-1"></i>Tambah Jadwal
             </button>
+            <?php endif; ?>
         </div>
         <?php else: ?>
         <div class="schedule-list">
@@ -293,11 +304,13 @@ $countAll = count($jadwal_list);
                         <i class="bi bi-whatsapp"></i>
                     </a>
                     <?php endif; ?>
+                    <?php if ($current_role !== 'guru'): ?>
                     <form method="POST" class="ajax-form" data-confirm="Hapus jadwal ini?">
                         <input type="hidden" name="action" value="delete">
                         <input type="hidden" name="id" value="<?= implode(',', $j['ids']) ?>">
                         <button class="btn btn-sm btn-outline-danger btn-icon" type="submit"><i class="bi bi-x"></i></button>
                     </form>
+                    <?php endif; ?>
                 </div>
             </div>
             <?php endforeach; ?>
