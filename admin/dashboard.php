@@ -80,6 +80,12 @@ $hadir_count = $conn->query("SELECT COUNT(*) FROM monitoring_kehadiran WHERE tan
 $terlambat_count = $conn->query("SELECT COUNT(*) FROM monitoring_kehadiran WHERE tanggal=CURDATE() AND status_kedatangan='terlambat'")->fetch_row()[0];
 $tidak_hadir_count = $conn->query("SELECT COUNT(*) FROM monitoring_kehadiran WHERE tanggal=CURDATE() AND status_kedatangan='tidak_hadir'")->fetch_row()[0];
 $total_monitoring = $hadir_count + $terlambat_count + $tidak_hadir_count;
+
+// Statistik kelas kosong
+$kk_hari_ini = (int) $conn->query("SELECT COUNT(*) FROM kelas_kosong WHERE tanggal=CURDATE()")->fetch_row()[0];
+$kk_belum = (int) $conn->query("SELECT COUNT(*) FROM kelas_kosong WHERE tanggal=CURDATE() AND tindakan='belum_ditangani'")->fetch_row()[0];
+$kk_sudah = $kk_hari_ini - $kk_belum;
+$kk_total = (int) $conn->query("SELECT COUNT(*) FROM kelas_kosong")->fetch_row()[0];
 ?>
 
 <!-- Statistik Ringkas -->
@@ -155,6 +161,38 @@ $total_monitoring = $hadir_count + $terlambat_count + $tidak_hadir_count;
             </div>
         </div>
         <?php endif; ?>
+    </div>
+</div>
+
+<!-- Kartu Monitoring: Kelas Kosong -->
+<div class="row g-4 mb-4">
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card">
+            <div class="icon-box orange"><i class="bi bi-door-open-fill"></i></div>
+            <div class="stat-value"><?= $kk_hari_ini ?></div>
+            <div class="stat-label">Kelas Kosong Hari Ini</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card">
+            <div class="icon-box red"><i class="bi bi-exclamation-triangle-fill"></i></div>
+            <div class="stat-value"><?= $kk_belum ?></div>
+            <div class="stat-label">Belum Ditangani</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card">
+            <div class="icon-box green"><i class="bi bi-check-circle-fill"></i></div>
+            <div class="stat-value"><?= $kk_sudah ?></div>
+            <div class="stat-label">Sudah Ditangani</div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card">
+            <div class="icon-box cyan"><i class="bi bi-clipboard-data-fill"></i></div>
+            <div class="stat-value"><?= $kk_total ?></div>
+            <div class="stat-label">Total Kelas Kosong</div>
+        </div>
     </div>
 </div>
 

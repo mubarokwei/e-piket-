@@ -502,6 +502,11 @@ body {
     color: var(--warning);
 }
 
+.stat-card .icon-box.orange {
+    background: rgba(249, 115, 22, 0.15);
+    color: #fb923c;
+}
+
 .stat-card .icon-box.red {
     background: rgba(239, 68, 68, 0.15);
     color: var(--danger);
