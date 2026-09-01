@@ -27,6 +27,7 @@ $page_access = [
     'guru'             => ['admin'],
     'mapel'            => ['admin'],
     'kelas'            => ['admin'],
+    'wa-nomor'         => ['admin'],
     'jadwal'           => ['admin', 'guru_piket', 'guru'],
     'jadwal-piket'     => ['admin', 'guru_piket'],
     'absensi'          => ['admin', 'guru_piket'],
@@ -107,6 +108,13 @@ if (isset($page_access[$current_page]) && !in_array($current_role, $page_access[
                     <a href="<?= BASE_URL ?>/admin/kelas.php">
                         <i class="bi bi-building"></i>
                         <span>Kelas</span>
+                    </a>
+                </li>
+                
+                <li class="nav-item <?= ($current_page === 'wa-nomor') ? 'active' : '' ?>">
+                    <a href="<?= BASE_URL ?>/admin/wa-nomor.php">
+                        <i class="bi bi-whatsapp"></i>
+                        <span>No. HP WhatsApp</span>
                     </a>
                 </li>
                 <?php endif; ?>
