@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $kelas = intval($_POST['kelas_id']);
         $mapel = intval($_POST['mapel_id']);
         $hari = sanitize($_POST['hari']);
-        $ruangan = sanitize($_POST['ruangan']);
+        $ruangan = ''; // Ruangan otomatis mengikuti nama kelas (tidak diinput manual)
         $jumlah_jp = max(1, intval($_POST['jumlah_jp'] ?? 1));
 
         $isCustom = ($_POST['jam_mulai'] ?? '') === 'custom';
@@ -278,9 +278,6 @@ $countAll = count($jadwal_list);
                     <?php if ($j['jp'] > 1): ?>
                     <span class="badge badge-primary"><?= $j['jp'] ?> JP</span>
                     <?php endif; ?>
-                    <?php if (!empty($j['ruangan'])): ?>
-                    <span><i class="bi bi-geo-alt me-1"></i><?= htmlspecialchars($j['ruangan']) ?></span>
-                    <?php endif; ?>
                 </div>
                 <div class="sch-actions">
                     <?php
@@ -290,7 +287,7 @@ $countAll = count($jadwal_list);
                             $j['nama_guru'], $j['hari'], $tanggalBerikutnya($j['hari']),
                             formatJam($j['jam_mulai']), formatJam($j['jam_selesai']),
                             $j['nama_kelas'], $j['kode_mapel'] . ' - ' . $j['nama_mapel'],
-                            $j['ruangan'] ?? ''
+                            $j['nama_kelas']
                         );
                         $wa = waLink($j['no_hp'], $pesan);
                     }
@@ -394,10 +391,7 @@ $countAll = count($jadwal_list);
                     <div class="preview-block mb-3" id="addPreview">
                         <i class="bi bi-clock-history me-2"></i><span id="addPreviewText">Pilih hari &amp; jam mulai — jam selesai dihitung otomatis.</span>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Ruangan</label>
-                        <input type="text" class="form-control" name="ruangan" placeholder="Contoh: R-101">
-                    </div>
+                    <div class="form-text mb-1"><i class="bi bi-geo-alt me-1"></i>Ruangan otomatis mengikuti nama kelas — tidak perlu diisi.</div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Batal</button>

@@ -75,6 +75,19 @@ if (!$current_slot) {
 $cd_slot = $current_slot ?? $next_slot;
 $cd_date = date('Y-m-d');
 
+// Status tiap slot untuk timeline hari ini
+$slot_done = 0;
+foreach ($slot_list as &$s) {
+    $st = strtotime($s['mulai']);
+    $en = strtotime($s['selesai']);
+    if ($now_ts > $en)      { $s['status'] = 'selesai'; $slot_done++; }
+    elseif ($now_ts >= $st) { $s['status'] = 'berlangsung'; }
+    else                    { $s['status'] = 'berikutnya'; }
+}
+unset($s);
+$slot_total = count($slot_list);
+$total_jp_hari_ini = count($jadwal_hari_ini_list);
+
 // Statistik status kehadiran hari ini
 $hadir_count = $conn->query("SELECT COUNT(*) FROM monitoring_kehadiran WHERE tanggal=CURDATE() AND status_kedatangan='tepat_waktu'")->fetch_row()[0];
 $terlambat_count = $conn->query("SELECT COUNT(*) FROM monitoring_kehadiran WHERE tanggal=CURDATE() AND status_kedatangan='terlambat'")->fetch_row()[0];
@@ -120,45 +133,65 @@ $kk_total = (int) $conn->query("SELECT COUNT(*) FROM kelas_kosong")->fetch_row()
     </div>
 </div>
 
-<!-- Panel Countdown Jadwal Hari Ini -->
+<!-- Panel Jadwal Mengajar Hari Ini (timeline) -->
 <div class="card mb-4">
     <div class="card-header">
         <h5><i class="bi bi-alarm me-2"></i>Jadwal Mengajar Hari Ini — <?= $hari_ini ?></h5>
-        <a href="jadwal.php" class="btn btn-sm btn-outline-primary">Lihat Jadwal</a>
+        <div class="d-flex align-items-center gap-3">
+            <?php if (!empty($cd_slot)):
+                $cd_mulai = $cd_date . 'T' . $cd_slot['mulai'];
+                $cd_selesai = $cd_date . 'T' . $cd_slot['selesai'];
+                $cd_status = $current_slot ? 'berlangsung' : 'berikutnya';
+            ?>
+            <div class="text-end d-none d-md-block">
+                <div class="text-secondary small fw-semibold" id="cdLabel">
+                    <?= $current_slot ? '<i class="bi bi-broadcast me-1"></i>Sisa waktu mengajar' : '<i class="bi bi-hourglass-split me-1"></i>Menuju jam berikutnya' ?>
+                </div>
+                <div class="fw-bold" id="cdDisplay" data-mulai="<?= $cd_mulai ?>" data-selesai="<?= $cd_selesai ?>" data-status="<?= $cd_status ?>" style="font-size:1.25rem;color:#67e8f9;font-variant-numeric:tabular-nums;line-height:1.15;">--:--:--</div>
+            </div>
+            <?php endif; ?>
+            <a href="jadwal.php" class="btn btn-sm btn-outline-primary">Lihat Jadwal</a>
+        </div>
     </div>
     <div class="card-body">
-        <?php if (empty($cd_slot)): ?>
+        <?php if (empty($slot_list)): ?>
         <div class="empty-state py-4">
             <i class="bi bi-calendar-check"></i>
-            <p class="mb-0"><?= empty($slot_list) ? 'Tidak ada jadwal mengajar hari ini.' : 'Semua jadwal mengajar hari ini telah selesai.' ?></p>
+            <p class="mb-0">Tidak ada jadwal mengajar hari ini.</p>
         </div>
-        <?php else: ?>
-        <?php
-        $cd_mulai = $cd_date . 'T' . $cd_slot['mulai'];
-        $cd_selesai = $cd_date . 'T' . $cd_slot['selesai'];
-        $cd_status = $current_slot ? 'berlangsung' : 'berikutnya';
+        <?php else:
+            $pct_day = $slot_total > 0 ? round(($slot_done / $slot_total) * 100) : 0;
         ?>
-        <div class="d-flex flex-wrap align-items-center gap-4">
-            <div class="countdown-jam">
-                <div class="text-secondary text-uppercase small fw-semibold mb-1">
-                    <?= $current_slot ? '<i class="bi bi-broadcast me-1"></i>Sedang Berlangsung' : '<i class="bi bi-hourglass-split me-1"></i>Jam Berikutnya' ?>
-                </div>
-                <div class="fw-bold" style="font-size:1.4rem;color:var(--text-primary);">
-                    <?= formatJam($cd_slot['mulai']) ?> – <?= formatJam($cd_slot['selesai']) ?>
-                </div>
-                <div class="text-secondary small mt-1"><?= count($cd_slot['daftar']) ?> kelas pada jam ini</div>
+        <!-- Ringkasan hari -->
+        <div class="d-flex flex-wrap align-items-center gap-3 mb-3 day-summary">
+            <span class="text-secondary small"><i class="bi bi-check2-circle text-success me-1"></i><strong><?= $slot_done ?></strong> dari <?= $slot_total ?> slot selesai</span>
+            <span class="text-secondary small"><i class="bi bi-hourglass-top me-1"></i><?= $total_jp_hari_ini ?> JP mengajar</span>
+            <div class="progress flex-grow-1" style="min-width:140px;height:6px;">
+                <div class="progress-bar bg-success" style="width: <?= $pct_day ?>%"></div>
             </div>
-            <div class="countdown-timer text-center">
-                <div class="text-secondary text-uppercase small fw-semibold mb-1">
-                    <?= $current_slot ? 'Sisa Waktu Mengajar' : 'Menuju Jam Mengajar' ?>
+            <span class="text-secondary small"><?= $pct_day ?>%</span>
+        </div>
+        <!-- Timeline slot -->
+        <div class="sch-day-list">
+            <?php foreach ($slot_list as $s):
+                $rowClass = match($s['status']) { 'berlangsung' => 'sch-live', 'berikutnya' => 'sch-next', default => 'sch-done' };
+                $stChip = match($s['status']) { 'berlangsung' => 'badge-success', 'berikutnya' => 'badge-warning', default => 'badge-secondary' };
+                $stLabel = match($s['status']) { 'berlangsung' => 'Sedang Berlangsung', 'berikutnya' => 'Jam Berikutnya', default => 'Selesai' };
+            ?>
+            <div class="sch-day-row <?= $rowClass ?>">
+                <div class="sch-day-time"><?= formatJam($s['mulai']) ?><span class="sch-day-sep">–</span><?= formatJam($s['selesai']) ?></div>
+                <div class="sch-day-status"><span class="badge <?= $stChip ?>"><?= $stLabel ?></span></div>
+                <div class="sch-day-items">
+                    <?php foreach ($s['daftar'] as $cdj): ?>
+                    <span class="sch-day-chip" title="<?= htmlspecialchars($cdj['nama_kelas'] . ' · ' . $cdj['nama_mapel'] . ' · ' . $cdj['nama_guru']) ?>">
+                        <span class="sch-day-kelas"><?= htmlspecialchars($cdj['nama_kelas']) ?></span>
+                        <span class="sch-day-mapel"><?= htmlspecialchars($cdj['nama_mapel']) ?></span>
+                        <span class="sch-day-guru"><?= htmlspecialchars($cdj['nama_guru']) ?></span>
+                    </span>
+                    <?php endforeach; ?>
                 </div>
-                <div class="fw-bold" id="cdDisplay" data-mulai="<?= $cd_mulai ?>" data-selesai="<?= $cd_selesai ?>" data-status="<?= $cd_status ?>" style="font-size:2.2rem;color:#67e8f9;font-variant-numeric:tabular-nums;">--:--:--</div>
             </div>
-            <div class="d-flex flex-wrap gap-1" style="flex:1;min-width:220px;">
-                <?php foreach ($cd_slot['daftar'] as $cdj): ?>
-                <span class="badge badge-secondary" title="<?= htmlspecialchars($cdj['nama_guru']) ?>"><?= htmlspecialchars($cdj['nama_kelas']) ?> · <?= htmlspecialchars($cdj['nama_mapel']) ?></span>
-                <?php endforeach; ?>
-            </div>
+            <?php endforeach; ?>
         </div>
         <?php endif; ?>
     </div>
@@ -361,14 +394,9 @@ $kk_total = (int) $conn->query("SELECT COUNT(*) FROM kelas_kosong")->fetch_row()
     function pad(n) { return String(n).padStart(2, '0'); }
     function render() {
         const now = Date.now();
-        let target, done = false;
-        if (berlangsung) {
-            target = selesai - now;
-            if (target < 0) { el.textContent = '00:00:00'; el.closest('.card').querySelector('.empty-state') || setTimeout(render, 1000); return; }
-        } else {
-            target = mulai - now;
-            if (target < 0) { location.reload(); return; }
-        }
+        const target = berlangsung ? selesai - now : mulai - now;
+        // Slot selesai / jam mulai tiba -> muat ulang agar status timeline segar
+        if (target < 0) { location.reload(); return; }
         const h = Math.floor(target / 3600000);
         const m = Math.floor((target % 3600000) / 60000);
         const s = Math.floor((target % 60000) / 1000);

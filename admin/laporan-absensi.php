@@ -9,14 +9,10 @@ $conn = getDB();
 $tgl_mulai = sanitize($_GET['tgl_mulai'] ?? date('Y-m-d', strtotime('-7 days')));
 $tgl_selesai = sanitize($_GET['tgl_selesai'] ?? date('Y-m-d'));
 $kelas_filter = $_GET['kelas_id'] ?? '';
-$guru_filter = $_GET['guru_id'] ?? '';
-$mapel_filter = $_GET['mapel_id'] ?? '';
 $search = sanitize($_GET['search'] ?? '');
 
 $where = "WHERE mk.tanggal BETWEEN '$tgl_mulai' AND '$tgl_selesai'";
 if ($kelas_filter) $where .= " AND mk.kelas_id = " . intval($kelas_filter);
-if ($guru_filter) $where .= " AND mk.guru_id = " . intval($guru_filter);
-if ($mapel_filter) $where .= " AND mk.mapel_id = " . intval($mapel_filter);
 if ($search) $where .= " AND (g.nama_guru LIKE '%$search%' OR k.nama_kelas LIKE '%$search%' OR mp.nama_mapel LIKE '%$search%')";
 
 // Data absensi guru mengajar
@@ -54,9 +50,7 @@ foreach ($absensi_data as $a) {
     $per_kelas[$key]['total']++;
 }
 
-$guru_list = $conn->query("SELECT id, nama_guru FROM guru WHERE status='aktif' ORDER BY nama_guru")->fetch_all(MYSQLI_ASSOC);
 $kelas_list_all = $conn->query("SELECT id, nama_kelas FROM kelas WHERE status='aktif' ORDER BY tingkat, nama_kelas")->fetch_all(MYSQLI_ASSOC);
-$mapel_list = $conn->query("SELECT id, kode_mapel, nama_mapel FROM mata_pelajaran WHERE status='aktif' ORDER BY kode_mapel")->fetch_all(MYSQLI_ASSOC);
 ?>
 
 <!-- Report Header (print) -->
@@ -70,40 +64,24 @@ $mapel_list = $conn->query("SELECT id, kode_mapel, nama_mapel FROM mata_pelajara
 <div id="ajax-area">
 <div class="card mb-4" id="filterSection">
     <div class="filter-bar">
-        <form class="d-flex gap-2 flex-wrap ajax-filter" method="GET">
-            <input type="date" class="form-control" name="tgl_mulai" value="<?= $tgl_mulai ?>" style="width:170px;">
+        <form class="d-flex gap-2 align-items-center flex-wrap ajax-filter" method="GET">
+            <input type="date" class="form-control" name="tgl_mulai" value="<?= $tgl_mulai ?>" style="width:160px;">
             <span class="text-secondary align-self-center">s/d</span>
-            <input type="date" class="form-control" name="tgl_selesai" value="<?= $tgl_selesai ?>" style="width:170px;">
-            <select class="form-select" name="kelas_id" style="width:160px;">
+            <input type="date" class="form-control" name="tgl_selesai" value="<?= $tgl_selesai ?>" style="width:160px;">
+            <select class="form-select" name="kelas_id" style="width:170px;">
                 <option value="">Semua Kelas</option>
                 <?php foreach ($kelas_list_all as $k): ?>
                 <option value="<?= $k['id'] ?>" <?= $kelas_filter == $k['id'] ? 'selected' : '' ?>><?= htmlspecialchars($k['nama_kelas']) ?></option>
                 <?php endforeach; ?>
             </select>
-            <select class="form-select" name="guru_id" style="width:180px;">
-                <option value="">Semua Guru</option>
-                <?php foreach ($guru_list as $g): ?>
-                <option value="<?= $g['id'] ?>" <?= $guru_filter == $g['id'] ? 'selected' : '' ?>><?= htmlspecialchars($g['nama_guru']) ?></option>
-                <?php endforeach; ?>
-            </select>
-            <select class="form-select" name="mapel_id" style="width:160px;">
-                <option value="">Semua Mapel</option>
-                <?php foreach ($mapel_list as $m): ?>
-                <option value="<?= $m['id'] ?>" <?= $mapel_filter == $m['id'] ? 'selected' : '' ?>><?= htmlspecialchars($m['kode_mapel'] . ' - ' . $m['nama_mapel']) ?></option>
-                <?php endforeach; ?>
-            </select>
-            <input type="text" class="form-control" name="search" placeholder="Cari guru / kelas / mapel..." value="<?= htmlspecialchars($search) ?>" style="width:180px;">
-            <button type="submit" class="btn btn-primary"><i class="bi bi-funnel me-1"></i>Filter</button>
-            <a href="laporan-absensi.php" class="btn btn-outline-light">Reset</a>
-        </form>
-        <div class="d-flex gap-2">
-            <button class="btn btn-outline-light" onclick="exportCSV('laporanAbsensiTable', 'laporan_absensi_guru')">
+            <input type="text" class="form-control" name="search" placeholder="Cari guru / mapel..." value="<?= htmlspecialchars($search) ?>" style="width:190px;">
+            <button type="button" class="btn btn-sm btn-outline-light ms-auto" onclick="exportCSV('laporanAbsensiTable', 'laporan_absensi_guru')">
                 <i class="bi bi-download me-1"></i>CSV
             </button>
-            <button class="btn btn-primary" onclick="printReport()">
+            <button type="button" class="btn btn-sm btn-primary" onclick="printReport()">
                 <i class="bi bi-printer me-1"></i>Cetak
             </button>
-        </div>
+        </form>
     </div>
 </div>
 

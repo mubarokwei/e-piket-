@@ -51,11 +51,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $tgl_mulai = sanitize($_GET['tgl_mulai'] ?? date('Y-m-01'));
 $tgl_selesai = sanitize($_GET['tgl_selesai'] ?? date('Y-m-d'));
 $kelas_filter = $_GET['kelas_id'] ?? '';
-$tindakan_filter = sanitize($_GET['tindakan'] ?? '');
 
 $where = "WHERE kk.tanggal BETWEEN '$tgl_mulai' AND '$tgl_selesai'";
 if ($kelas_filter) $where .= " AND kk.kelas_id = " . intval($kelas_filter);
-if ($tindakan_filter) $where .= " AND kk.tindakan = '$tindakan_filter'";
 $search = sanitize($_GET['search'] ?? '');
 if ($search) $where .= " AND (k.nama_kelas LIKE '%$search%' OR COALESCE(g.nama_guru,'') LIKE '%$search%' OR COALESCE(kk.catatan,'') LIKE '%$search%')";
 
@@ -84,6 +82,19 @@ $kelas_dampak = count(array_unique(array_column($list, 'kelas_id')));
 
 // Data untuk form
 $guru_list = $conn->query("SELECT id, nama_guru, no_hp FROM guru WHERE status='aktif' ORDER BY nama_guru")->fetch_all(MYSQLI_ASSOC);
+
+// Guru piket per tanggal (dari jadwal_piket) untuk dropdown "Dilaporkan Oleh"
+$piket_map = [];
+$piket_rows = $conn->query("SELECT jp.tanggal, jp.guru_id, jp.guru_pengganti_id, g.nama_guru FROM jadwal_piket jp JOIN guru g ON jp.guru_id = g.id WHERE g.status='aktif' ORDER BY jp.tanggal, g.nama_guru");
+if ($piket_rows) foreach ($piket_rows as $pr) {
+    $piket_map[$pr['tanggal']][] = ['id' => (int) $pr['guru_id'], 'nama' => $pr['nama_guru']];
+    if (!empty($pr['guru_pengganti_id'])) {
+        $pgq = $conn->query("SELECT id, nama_guru FROM guru WHERE id=" . (int) $pr['guru_pengganti_id']);
+        if ($pgq && $pg = $pgq->fetch_assoc()) $piket_map[$pr['tanggal']][] = ['id' => (int) $pg['id'], 'nama' => $pg['nama_guru'] . ' (pengganti)'];
+    }
+}
+$all_guru_map = [];
+foreach ($guru_list as $g) $all_guru_map[(int) $g['id']] = $g['nama_guru'];
 $kelas_list_all = $conn->query("SELECT id, nama_kelas FROM kelas WHERE status='aktif' ORDER BY tingkat, nama_kelas")->fetch_all(MYSQLI_ASSOC);
 $mapel_list = $conn->query("SELECT id, kode_mapel, nama_mapel FROM mata_pelajaran WHERE status='aktif' ORDER BY kode_mapel")->fetch_all(MYSQLI_ASSOC);
 $jadwal_list = $conn->query("
@@ -146,40 +157,26 @@ function tindakanClass($t) {
 <div class="card mb-4">
     <div class="filter-bar">
         <form class="d-flex gap-2 align-items-center flex-wrap ajax-filter" method="GET">
-            <label class="form-label mb-0 me-1 text-secondary">Dari:</label>
             <input type="date" class="form-control" name="tgl_mulai" value="<?= $tgl_mulai ?>" style="width:160px;">
-            <label class="form-label mb-0 me-1 text-secondary">s/d:</label>
+            <span class="text-secondary align-self-center">s/d</span>
             <input type="date" class="form-control" name="tgl_selesai" value="<?= $tgl_selesai ?>" style="width:160px;">
-            <select class="form-select" name="kelas_id" style="width:150px;">
+            <select class="form-select" name="kelas_id" style="width:170px;">
                 <option value="">Semua Kelas</option>
                 <?php foreach ($kelas_list_all as $k): ?>
                 <option value="<?= $k['id'] ?>" <?= $kelas_filter == $k['id'] ? 'selected' : '' ?>><?= htmlspecialchars($k['nama_kelas']) ?></option>
                 <?php endforeach; ?>
             </select>
-            <select class="form-select" name="tindakan" style="width:155px;">
-                <option value="">Semua Penanganan</option>
-                <option value="belum_ditangani" <?= $tindakan_filter === 'belum_ditangani' ? 'selected' : '' ?>>Belum Ditangani</option>
-                <option value="ditelepon" <?= $tindakan_filter === 'ditelepon' ? 'selected' : '' ?>>Ditelepon</option>
-                <option value="whatsapp" <?= $tindakan_filter === 'whatsapp' ? 'selected' : '' ?>>Diingatkan via WA</option>
-                <option value="digantikan" <?= $tindakan_filter === 'digantikan' ? 'selected' : '' ?>>Digantikan</option>
-                <option value="didampingi" <?= $tindakan_filter === 'didampingi' ? 'selected' : '' ?>>Didampingi</option>
-                <option value="dilaporkan" <?= $tindakan_filter === 'dilaporkan' ? 'selected' : '' ?>>Dilaporkan</option>
-            </select>
             <input type="text" class="form-control" name="search" placeholder="Cari kelas / guru / catatan..." value="<?= htmlspecialchars($search) ?>" style="width:190px;">
-            <button type="submit" class="btn btn-primary"><i class="bi bi-funnel me-1"></i>Filter</button>
-            <a href="?" class="btn btn-outline-light">Reset</a>
-        </form>
-        <div class="d-flex gap-2">
-            <button class="btn btn-outline-light" onclick="printReport()">
+            <button type="button" class="btn btn-sm btn-outline-light ms-auto" onclick="printReport()">
                 <i class="bi bi-printer me-1"></i>Cetak
             </button>
-            <button class="btn btn-outline-light" onclick="exportCSV('kelasKosongTable', 'kelas_kosong_<?= $tgl_mulai ?>_<?= $tgl_selesai ?>')">
+            <button type="button" class="btn btn-sm btn-outline-light" onclick="exportCSV('kelasKosongTable', 'kelas_kosong_<?= $tgl_mulai ?>_<?= $tgl_selesai ?>')">
                 <i class="bi bi-download me-1"></i>CSV
             </button>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal">
+            <button type="button" class="btn btn-sm btn-success ms-1" data-bs-toggle="modal" data-bs-target="#addModal">
                 <i class="bi bi-plus-lg me-1"></i>Input Kelas Kosong
             </button>
-        </div>
+        </form>
     </div>
 </div>
 
@@ -317,7 +314,7 @@ function tindakanClass($t) {
 
 <!-- Modal Input Kelas Kosong -->
 <div class="modal fade" id="addModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <form method="POST" class="ajax-form">
                 <input type="hidden" name="action" value="add">
@@ -420,12 +417,10 @@ function tindakanClass($t) {
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Dilaporkan Oleh (Guru Piket) <span class="text-danger">*</span></label>
-                            <select class="form-select" name="dilaporkan_oleh" required>
+                            <select class="form-select" name="dilaporkan_oleh" id="pelaporKelasKosong" required>
                                 <option value="">-- Pilih Guru Piket --</option>
-                                <?php foreach ($guru_list as $g): ?>
-                                <option value="<?= $g['id'] ?>"><?= htmlspecialchars($g['nama_guru']) ?></option>
-                                <?php endforeach; ?>
                             </select>
+                            <div class="form-text" id="pelaporHintKelasKosong"></div>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Catatan</label>
@@ -494,10 +489,36 @@ function isiOtomatis() {
     fJamSelesai.disabled = true;
 }
 
+// Dropdown "Dilaporkan Oleh": ambil guru piket dari jadwal_piket sesuai tanggal
+var PIKET_MAP = <?= json_encode($piket_map) ?>;
+var ALL_GURU = <?= json_encode($all_guru_map) ?>;
+function populatePelapor() {
+    const sel = document.getElementById('pelaporKelasKosong');
+    const hint = document.getElementById('pelaporHintKelasKosong');
+    const tgl = fTanggal.value;
+    if (!sel) return;
+    sel.innerHTML = '';
+    const ph = document.createElement('option'); ph.value = ''; ph.textContent = '-- Pilih Guru Piket --'; sel.appendChild(ph);
+    const list = PIKET_MAP[tgl] || null;
+    if (list && list.length) {
+        list.forEach(function (g) {
+            const o = document.createElement('option'); o.value = g.id; o.textContent = g.nama; sel.appendChild(o);
+        });
+        hint.textContent = 'Guru piket sesuai jadwal piket tanggal ' + tgl + '.';
+    } else {
+        Object.keys(ALL_GURU).forEach(function (id) {
+            const o = document.createElement('option'); o.value = id; o.textContent = ALL_GURU[id]; sel.appendChild(o);
+        });
+        hint.textContent = 'Belum ada jadwal piket untuk tanggal ini — menampilkan semua guru.';
+    }
+    if (sel.options.length > 1) sel.selectedIndex = 1;
+}
+
 fKelas.addEventListener('change', filterJadwal);
-fTanggal.addEventListener('change', filterJadwal);
+fTanggal.addEventListener('change', function () { filterJadwal(); populatePelapor(); });
 fJadwal.addEventListener('change', isiOtomatis);
 filterJadwal();
+populatePelapor();
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

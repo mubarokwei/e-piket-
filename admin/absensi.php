@@ -82,6 +82,19 @@ $terlambat = count(array_filter($absensi_list, fn($a) => $a['status_kedatangan']
 $tidak = count(array_filter($absensi_list, fn($a) => $a['status_kedatangan'] === 'tidak_hadir' || $a['status_kedatangan'] === 'digantikan'));
 
 $guru_list = $conn->query("SELECT id, nama_guru FROM guru WHERE status='aktif' ORDER BY nama_guru")->fetch_all(MYSQLI_ASSOC);
+
+// Guru piket per tanggal (dari jadwal_piket) untuk dropdown "Dilaporkan Oleh"
+$piket_map = [];
+$piket_rows = $conn->query("SELECT jp.tanggal, jp.guru_id, jp.guru_pengganti_id, g.nama_guru FROM jadwal_piket jp JOIN guru g ON jp.guru_id = g.id WHERE g.status='aktif' ORDER BY jp.tanggal, g.nama_guru");
+if ($piket_rows) foreach ($piket_rows as $pr) {
+    $piket_map[$pr['tanggal']][] = ['id' => (int) $pr['guru_id'], 'nama' => $pr['nama_guru']];
+    if (!empty($pr['guru_pengganti_id'])) {
+        $pgq = $conn->query("SELECT id, nama_guru FROM guru WHERE id=" . (int) $pr['guru_pengganti_id']);
+        if ($pgq && $pg = $pgq->fetch_assoc()) $piket_map[$pr['tanggal']][] = ['id' => (int) $pg['id'], 'nama' => $pg['nama_guru'] . ' (pengganti)'];
+    }
+}
+$all_guru_map = [];
+foreach ($guru_list as $g) $all_guru_map[(int) $g['id']] = $g['nama_guru'];
 $kelas_list_all = $conn->query("SELECT id, nama_kelas FROM kelas WHERE status='aktif' ORDER BY tingkat, nama_kelas")->fetch_all(MYSQLI_ASSOC);
 $jadwal_list = $conn->query("
     SELECT jm.*, g.nama_guru, k.nama_kelas, mp.nama_mapel, mp.kode_mapel
@@ -151,26 +164,22 @@ if ($rec_rows) foreach ($rec_rows as $rr) $recorded_map[$rr['tanggal'] . '|' . $
 <div class="card mb-4">
     <div class="filter-bar">
         <form class="d-flex gap-2 align-items-center flex-wrap ajax-filter" method="GET">
-            <label class="form-label mb-0 me-1 text-secondary">Tanggal:</label>
-            <input type="date" class="form-control" name="tanggal" value="<?= $tgl_filter ?>" style="width:200px;">
-            <select class="form-select" name="kelas_id" style="width:180px;">
+            <input type="date" class="form-control" name="tanggal" value="<?= $tgl_filter ?>" style="width:170px;">
+            <select class="form-select" name="kelas_id" style="width:175px;">
                 <option value="">Semua Kelas</option>
                 <?php foreach ($kelas_list_all as $k): ?>
                 <option value="<?= $k['id'] ?>" <?= $kelas_filter == $k['id'] ? 'selected' : '' ?>><?= htmlspecialchars($k['nama_kelas']) ?></option>
                 <?php endforeach; ?>
             </select>
-            <input type="text" class="form-control" name="search" placeholder="Cari guru / kelas / mapel..." value="<?= htmlspecialchars($search) ?>" style="width:200px;">
-            <button type="submit" class="btn btn-primary"><i class="bi bi-funnel me-1"></i>Filter</button>
-            <a href="?tanggal=<?= date('Y-m-d') ?>" class="btn btn-outline-light">Hari Ini</a>
-        </form>
-        <div class="d-flex gap-2">
-            <button class="btn btn-outline-light" onclick="exportCSV('absensiGuruTable', 'absensi_guru_<?= $tgl_filter ?>')">
+            <input type="text" class="form-control" name="search" placeholder="Cari guru / mapel..." value="<?= htmlspecialchars($search) ?>" style="width:200px;">
+            <a href="?tanggal=<?= date('Y-m-d') ?>" class="btn btn-sm btn-outline-light ms-auto">Hari Ini</a>
+            <button type="button" class="btn btn-sm btn-outline-light" onclick="exportCSV('absensiGuruTable', 'absensi_guru_<?= $tgl_filter ?>')">
                 <i class="bi bi-download me-1"></i>CSV
             </button>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal">
+            <button type="button" class="btn btn-sm btn-primary ms-1" data-bs-toggle="modal" data-bs-target="#addModal">
                 <i class="bi bi-plus-lg me-1"></i>Input Absensi
             </button>
-        </div>
+        </form>
     </div>
 </div>
 
@@ -289,7 +298,7 @@ if ($rec_rows) foreach ($rec_rows as $rr) $recorded_map[$rr['tanggal'] . '|' . $
                                     $a['nama_guru'], namaHari($a['tanggal']), $a['tanggal'],
                                     formatJam($jamA), formatJam($jamB),
                                     $a['nama_kelas'], $a['kode_mapel'] . ' - ' . $a['nama_mapel'],
-                                    $a['ruangan'] ?? ''
+                                    $a['nama_kelas'] // ruangan = nama kelas
                                 );
                                 $wa = waLink($a['no_hp'], $pesan);
                             }
@@ -323,7 +332,7 @@ if ($rec_rows) foreach ($rec_rows as $rr) $recorded_map[$rr['tanggal'] . '|' . $
 
 <!-- Modal Input Absensi Guru Mengajar (class-centric: pilih kelas -> lihat jadwal -> klik blok) -->
 <div class="modal fade" id="addModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <form method="POST" class="ajax-form">
                 <input type="hidden" name="action" value="add">
@@ -348,12 +357,10 @@ if ($rec_rows) foreach ($rec_rows as $rr) $recorded_map[$rr['tanggal'] . '|' . $
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Dilaporkan Oleh (Guru Piket) <span class="text-danger">*</span></label>
-                            <select class="form-select" name="dilaporkan_oleh" required>
+                            <select class="form-select" name="dilaporkan_oleh" id="pelaporAbsensi" required>
                                 <option value="">-- Pilih Guru Piket --</option>
-                                <?php foreach ($guru_list as $g): ?>
-                                <option value="<?= $g['id'] ?>"><?= htmlspecialchars($g['nama_guru']) ?></option>
-                                <?php endforeach; ?>
                             </select>
+                            <div class="form-text" id="pelaporHintAbsensi"></div>
                         </div>
                     </div>
 
@@ -440,6 +447,30 @@ if ($rec_rows) foreach ($rec_rows as $rr) $recorded_map[$rr['tanggal'] . '|' . $
     var infoText = document.getElementById('absSelectedText');
     var saveBtn = modal.querySelector('button[type="submit"]');
 
+    // Dropdown "Dilaporkan Oleh": ambil guru piket dari jadwal_piket sesuai tanggal
+    var PIKET_MAP = <?= json_encode($piket_map) ?>;
+    var ALL_GURU = <?= json_encode($all_guru_map) ?>;
+    function populatePelapor() {
+        var sel = document.getElementById('pelaporAbsensi');
+        var hint = document.getElementById('pelaporHintAbsensi');
+        var tgl = selTanggal.value;
+        sel.innerHTML = '';
+        var ph = document.createElement('option'); ph.value = ''; ph.textContent = '-- Pilih Guru Piket --'; sel.appendChild(ph);
+        var list = PIKET_MAP[tgl] || null;
+        if (list && list.length) {
+            list.forEach(function (g) {
+                var o = document.createElement('option'); o.value = g.id; o.textContent = g.nama; sel.appendChild(o);
+            });
+            hint.textContent = 'Guru piket sesuai jadwal piket tanggal ' + tgl + '.';
+        } else {
+            Object.keys(ALL_GURU).forEach(function (id) {
+                var o = document.createElement('option'); o.value = id; o.textContent = ALL_GURU[id]; sel.appendChild(o);
+            });
+            hint.textContent = 'Belum ada jadwal piket untuk tanggal ini — menampilkan semua guru.';
+        }
+        if (sel.options.length > 1) sel.selectedIndex = 1;
+    }
+
     function namaHari(tgl) {
         return ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'][new Date(tgl + 'T00:00:00').getDay()];
     }
@@ -510,13 +541,15 @@ if ($rec_rows) foreach ($rec_rows as $rr) $recorded_map[$rr['tanggal'] . '|' . $
         var b = e.target.closest && e.target.closest('.abs-block');
         if (b && !b.classList.contains('d-none')) selectBlock(b);
     });
-    selTanggal.addEventListener('change', render);
+    selTanggal.addEventListener('change', function () { render(); populatePelapor(); });
     selKelas.addEventListener('change', function () { lastKelas = selKelas.value; render(); });
     modal.addEventListener('show.bs.modal', function () {
         if (lastKelas) selKelas.value = lastKelas;
         render();
+        populatePelapor();
     });
     render();
+    populatePelapor();
 })();
 </script>
 

@@ -49,6 +49,18 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // =============================================
+    // Modal: jangan biarkan modal ikut ter-scroll saat dibuka
+    // (focus otomatis Bootstrap ke elemen dalam bisa menggeser
+    // kontainer modal sehingga judul/header modal terpotong di atas).
+    // =============================================
+    document.addEventListener('shown.bs.modal', function(e) {
+        const m = e.target;
+        if (m && typeof m.scrollTop === 'number' && m.scrollTop !== 0) {
+            m.scrollTop = 0;
+        }
+    });
+
+    // =============================================
     // Toast Notifikasi (hasil aksi AJAX)
     // =============================================
     const toastBox = document.createElement('div');

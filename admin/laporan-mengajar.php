@@ -7,16 +7,10 @@ $conn = getDB();
 
 // Filter
 $kelas_filter = $_GET['kelas_id'] ?? '';
-$guru_filter = $_GET['guru_id'] ?? '';
-$mapel_filter = $_GET['mapel_id'] ?? '';
-$hari_filter = $_GET['hari'] ?? '';
 $search = sanitize($_GET['search'] ?? '');
 
 $where = "WHERE jm.status = 'aktif'";
 if ($kelas_filter) $where .= " AND jm.kelas_id = " . intval($kelas_filter);
-if ($guru_filter) $where .= " AND jm.guru_id = " . intval($guru_filter);
-if ($mapel_filter) $where .= " AND jm.mapel_id = " . intval($mapel_filter);
-if ($hari_filter) $where .= " AND jm.hari = '" . sanitize($hari_filter) . "'";
 if ($search) $where .= " AND (g.nama_guru LIKE '%$search%' OR k.nama_kelas LIKE '%$search%' OR mp.nama_mapel LIKE '%$search%')";
 
 // Data jadwal mengajar
@@ -36,10 +30,7 @@ $guru_aktif = count(array_unique(array_column($jadwal_mengajar, 'guru_id')));
 $kelas_terjadwal = count(array_unique(array_column($jadwal_mengajar, 'kelas_id')));
 
 // Data untuk filter
-$guru_list = $conn->query("SELECT id, nama_guru FROM guru WHERE status='aktif' ORDER BY nama_guru")->fetch_all(MYSQLI_ASSOC);
 $kelas_list_all = $conn->query("SELECT id, nama_kelas FROM kelas WHERE status='aktif' ORDER BY tingkat, nama_kelas")->fetch_all(MYSQLI_ASSOC);
-$mapel_list = $conn->query("SELECT id, kode_mapel, nama_mapel FROM mata_pelajaran WHERE status='aktif' ORDER BY kode_mapel")->fetch_all(MYSQLI_ASSOC);
-$hari_options = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
 // Group by kelas
 $jadwal_per_kelas = [];
@@ -65,43 +56,21 @@ foreach ($jadwal_mengajar as $j) {
 <div id="ajax-area">
 <div class="card mb-4" id="filterSection">
     <div class="filter-bar">
-        <form class="d-flex gap-2 flex-wrap ajax-filter" method="GET" id="filterForm">
-            <select class="form-select" name="kelas_id">
+        <form class="d-flex gap-2 align-items-center flex-wrap ajax-filter" method="GET" id="filterForm">
+            <select class="form-select" name="kelas_id" style="width:200px;">
                 <option value="">Semua Kelas</option>
                 <?php foreach ($kelas_list_all as $k): ?>
                 <option value="<?= $k['id'] ?>" <?= $kelas_filter == $k['id'] ? 'selected' : '' ?>><?= htmlspecialchars($k['nama_kelas']) ?></option>
                 <?php endforeach; ?>
             </select>
-            <select class="form-select" name="guru_id">
-                <option value="">Semua Guru</option>
-                <?php foreach ($guru_list as $g): ?>
-                <option value="<?= $g['id'] ?>" <?= $guru_filter == $g['id'] ? 'selected' : '' ?>><?= htmlspecialchars($g['nama_guru']) ?></option>
-                <?php endforeach; ?>
-            </select>
-            <select class="form-select" name="mapel_id">
-                <option value="">Semua Mapel</option>
-                <?php foreach ($mapel_list as $m): ?>
-                <option value="<?= $m['id'] ?>" <?= $mapel_filter == $m['id'] ? 'selected' : '' ?>><?= htmlspecialchars($m['kode_mapel'] . ' - ' . $m['nama_mapel']) ?></option>
-                <?php endforeach; ?>
-            </select>
-            <select class="form-select" name="hari">
-                <option value="">Semua Hari</option>
-                <?php foreach ($hari_options as $h): ?>
-                <option value="<?= $h ?>" <?= $hari_filter === $h ? 'selected' : '' ?>><?= $h ?></option>
-                <?php endforeach; ?>
-            </select>
-            <input type="text" class="form-control" name="search" placeholder="Cari guru / kelas / mapel..." value="<?= htmlspecialchars($search) ?>" style="width:200px;">
-            <button type="submit" class="btn btn-primary"><i class="bi bi-funnel me-1"></i>Filter</button>
-            <a href="laporan-mengajar.php" class="btn btn-outline-light">Reset</a>
-        </form>
-        <div class="d-flex gap-2">
-            <button class="btn btn-outline-light" onclick="exportCSV('laporanMengajarTable', 'laporan_mengajar')">
+            <input type="text" class="form-control" name="search" placeholder="Cari guru / mapel..." value="<?= htmlspecialchars($search) ?>" style="width:220px;">
+            <button type="button" class="btn btn-sm btn-outline-light ms-auto" onclick="exportCSV('laporanMengajarTable', 'laporan_mengajar')">
                 <i class="bi bi-download me-1"></i>CSV
             </button>
-            <button class="btn btn-primary" onclick="printReport()">
+            <button type="button" class="btn btn-sm btn-primary" onclick="printReport()">
                 <i class="bi bi-printer me-1"></i>Cetak
             </button>
-        </div>
+        </form>
     </div>
 </div>
 
@@ -170,7 +139,7 @@ foreach ($jadwal_mengajar as $j) {
                             <span class="badge badge-secondary"><?= htmlspecialchars($j['kode_mapel']) ?></span>
                             <?= htmlspecialchars($j['nama_mapel']) ?>
                         </td>
-                        <td class="text-muted"><?= htmlspecialchars($j['ruangan'] ?? '-') ?></td>
+                        <td class="text-muted"><?= htmlspecialchars($j['nama_kelas']) ?></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -205,7 +174,7 @@ foreach ($jadwal_mengajar as $j) {
                         <td><?= formatJam($j['jam_mulai']) ?> - <?= formatJam($j['jam_selesai']) ?></td>
                         <td><span class="badge badge-secondary"><?= htmlspecialchars($j['kode_mapel']) ?></span> <?= htmlspecialchars($j['nama_mapel']) ?></td>
                         <td><strong><?= htmlspecialchars($j['nama_guru']) ?></strong></td>
-                        <td class="text-muted"><?= htmlspecialchars($j['ruangan'] ?? '-') ?></td>
+                        <td class="text-muted"><?= htmlspecialchars($j['nama_kelas']) ?></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>

@@ -226,7 +226,7 @@ foreach ($jadwal_all as $j) {
                                             $pj['nama_guru'], $pj['hari'], $tanggalPengingat,
                                             formatJam($pj['jam_mulai']), formatJam($pj['jam_selesai']),
                                             $k['nama_kelas'], $pj['kode_mapel'] . ' - ' . $pj['nama_mapel'],
-                                            $pj['ruangan'] ?? ''
+                                            $k['nama_kelas'] // ruangan = nama kelas
                                         );
                                         $wa = waLink($pj['no_hp'], $pesan);
                                         ?>

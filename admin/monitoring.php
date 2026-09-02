@@ -55,15 +55,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Filter
 $tgl_mulai = sanitize($_GET['tgl_mulai'] ?? date('Y-m-d'));
 $tgl_selesai = sanitize($_GET['tgl_selesai'] ?? date('Y-m-d'));
-$mapel_filter = $_GET['mapel_id'] ?? '';
-$guru_filter = $_GET['guru_id'] ?? '';
 $kelas_filter = $_GET['kelas_id'] ?? '';
 
 $search = sanitize($_GET['search'] ?? '');
 
 $where = "WHERE mk.tanggal BETWEEN '$tgl_mulai' AND '$tgl_selesai'";
-if ($mapel_filter) $where .= " AND mk.mapel_id = " . intval($mapel_filter);
-if ($guru_filter) $where .= " AND mk.guru_id = " . intval($guru_filter);
 if ($kelas_filter) $where .= " AND mk.kelas_id = " . intval($kelas_filter);
 if ($search) $where .= " AND (g.nama_guru LIKE '%$search%' OR k.nama_kelas LIKE '%$search%' OR mp.nama_mapel LIKE '%$search%')";
 
@@ -115,6 +111,19 @@ foreach ($monitoring_data as $m) {
 
 // Data for forms
 $guru_list = $conn->query("SELECT id, nama_guru FROM guru WHERE status='aktif' ORDER BY nama_guru")->fetch_all(MYSQLI_ASSOC);
+
+// Guru piket per tanggal (dari jadwal_piket) untuk dropdown "Dilaporkan Oleh"
+$piket_map = [];
+$piket_rows = $conn->query("SELECT jp.tanggal, jp.guru_id, jp.guru_pengganti_id, g.nama_guru FROM jadwal_piket jp JOIN guru g ON jp.guru_id = g.id WHERE g.status='aktif' ORDER BY jp.tanggal, g.nama_guru");
+if ($piket_rows) foreach ($piket_rows as $pr) {
+    $piket_map[$pr['tanggal']][] = ['id' => (int) $pr['guru_id'], 'nama' => $pr['nama_guru']];
+    if (!empty($pr['guru_pengganti_id'])) {
+        $pgq = $conn->query("SELECT id, nama_guru FROM guru WHERE id=" . (int) $pr['guru_pengganti_id']);
+        if ($pgq && $pg = $pgq->fetch_assoc()) $piket_map[$pr['tanggal']][] = ['id' => (int) $pg['id'], 'nama' => $pg['nama_guru'] . ' (pengganti)'];
+    }
+}
+$all_guru_map = [];
+foreach ($guru_list as $g) $all_guru_map[(int) $g['id']] = $g['nama_guru'];
 $jadwal_list = $conn->query("SELECT jm.*, g.nama_guru, k.nama_kelas, k.id AS kelas_id_full, mp.nama_mapel, mp.id AS mapel_id_full FROM jadwal_mengajar jm JOIN guru g ON jm.guru_id=g.id JOIN kelas k ON jm.kelas_id=k.id JOIN mata_pelajaran mp ON jm.mapel_id=mp.id WHERE jm.status='aktif' ORDER BY jm.hari, jm.jam_mulai")->fetch_all(MYSQLI_ASSOC);
 $mapel_list = $conn->query("SELECT id, kode_mapel, nama_mapel FROM mata_pelajaran WHERE status='aktif' ORDER BY kode_mapel")->fetch_all(MYSQLI_ASSOC);
 $kelas_list_all = $conn->query("SELECT id, nama_kelas FROM kelas WHERE status='aktif' ORDER BY tingkat, nama_kelas")->fetch_all(MYSQLI_ASSOC);
@@ -131,43 +140,27 @@ $kelas_list_all = $conn->query("SELECT id, nama_kelas FROM kelas WHERE status='a
 <div id="ajax-area">
 <div class="card mb-4" id="filterSection">
     <div class="filter-bar">
-        <form class="d-flex gap-2 flex-wrap ajax-filter" method="GET">
-            <input type="date" class="form-control" name="tgl_mulai" value="<?= $tgl_mulai ?>" style="width:170px;">
-            <span class="text-muted align-self-center">s/d</span>
-            <input type="date" class="form-control" name="tgl_selesai" value="<?= $tgl_selesai ?>" style="width:170px;">
-            <select class="form-select" name="mapel_id" style="width:180px;">
-                <option value="">Semua Mapel</option>
-                <?php foreach ($mapel_list as $m): ?>
-                <option value="<?= $m['id'] ?>" <?= $mapel_filter == $m['id'] ? 'selected' : '' ?>><?= htmlspecialchars($m['kode_mapel'] . ' - ' . $m['nama_mapel']) ?></option>
-                <?php endforeach; ?>
-            </select>
-            <select class="form-select" name="guru_id" style="width:180px;">
-                <option value="">Semua Guru</option>
-                <?php foreach ($guru_list as $g): ?>
-                <option value="<?= $g['id'] ?>" <?= $guru_filter == $g['id'] ? 'selected' : '' ?>><?= htmlspecialchars($g['nama_guru']) ?></option>
-                <?php endforeach; ?>
-            </select>
-            <select class="form-select" name="kelas_id" style="width:150px;">
+        <form class="d-flex gap-2 align-items-center flex-wrap ajax-filter" method="GET">
+            <input type="date" class="form-control" name="tgl_mulai" value="<?= $tgl_mulai ?>" style="width:160px;">
+            <span class="text-secondary align-self-center">s/d</span>
+            <input type="date" class="form-control" name="tgl_selesai" value="<?= $tgl_selesai ?>" style="width:160px;">
+            <select class="form-select" name="kelas_id" style="width:170px;">
                 <option value="">Semua Kelas</option>
                 <?php foreach ($kelas_list_all as $k): ?>
                 <option value="<?= $k['id'] ?>" <?= $kelas_filter == $k['id'] ? 'selected' : '' ?>><?= htmlspecialchars($k['nama_kelas']) ?></option>
                 <?php endforeach; ?>
             </select>
-            <input type="text" class="form-control" name="search" placeholder="Cari guru / kelas / mapel..." value="<?= htmlspecialchars($search) ?>" style="width:190px;">
-            <button type="submit" class="btn btn-primary"><i class="bi bi-funnel me-1"></i>Filter</button>
-            <a href="monitoring.php" class="btn btn-outline-light">Reset</a>
-        </form>
-        <div class="d-flex gap-2">
-            <button class="btn btn-outline-light" onclick="exportCSV('monitoringTable', 'monitoring_kehadiran')">
+            <input type="text" class="form-control" name="search" placeholder="Cari guru / mapel..." value="<?= htmlspecialchars($search) ?>" style="width:190px;">
+            <button type="button" class="btn btn-sm btn-outline-light ms-auto" onclick="exportCSV('monitoringTable', 'monitoring_kehadiran')">
                 <i class="bi bi-download me-1"></i>CSV
             </button>
-            <button class="btn btn-primary" onclick="printReport()">
+            <button type="button" class="btn btn-sm btn-outline-light" onclick="printReport()">
                 <i class="bi bi-printer me-1"></i>Cetak
             </button>
-            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addModal">
+            <button type="button" class="btn btn-sm btn-success ms-1" data-bs-toggle="modal" data-bs-target="#addModal">
                 <i class="bi bi-plus-lg me-1"></i>Input Monitoring
             </button>
-        </div>
+        </form>
     </div>
 </div>
 
@@ -393,7 +386,7 @@ $kelas_list_all = $conn->query("SELECT id, nama_kelas FROM kelas WHERE status='a
                                     $m['nama_guru'], namaHari($m['tanggal']), $m['tanggal'],
                                     formatJam($jamA), formatJam($jamB),
                                     $m['nama_kelas'], $m['kode_mapel'] . ' - ' . $m['nama_mapel'],
-                                    $m['ruangan'] ?? ''
+                                    $m['nama_kelas'] // ruangan = nama kelas
                                 );
                                 $wa = waLink($m['no_hp'], $pesan);
                             }
@@ -425,7 +418,7 @@ $kelas_list_all = $conn->query("SELECT id, nama_kelas FROM kelas WHERE status='a
 
 <!-- Add Modal -->
 <div class="modal fade" id="addModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <form method="POST" class="ajax-form">
                 <input type="hidden" name="action" value="add">
@@ -441,12 +434,10 @@ $kelas_list_all = $conn->query("SELECT id, nama_kelas FROM kelas WHERE status='a
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Dilaporkan Oleh <span class="text-danger">*</span></label>
-                            <select class="form-select" name="dilaporkan_oleh" required>
+                            <select class="form-select" name="dilaporkan_oleh" id="pelaporMonitoring" required>
                                 <option value="">-- Pilih Guru Piket --</option>
-                                <?php foreach ($guru_list as $g): ?>
-                                <option value="<?= $g['id'] ?>"><?= htmlspecialchars($g['nama_guru']) ?></option>
-                                <?php endforeach; ?>
                             </select>
+                            <div class="form-text" id="pelaporHintMonitoring"></div>
                         </div>
                     </div>
                     <div class="mb-3">
@@ -512,7 +503,8 @@ $kelas_list_all = $conn->query("SELECT id, nama_kelas FROM kelas WHERE status='a
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Jam Mengajar Selesai <small class="text-secondary">(otomatis dari jadwal)</small></label>
+                            <label class="form-label">Jam Selesai</label>
+                            <div class="form-text mt-0 mb-1">otomatis dari jadwal</div>
                             <input type="time" class="form-control" name="jam_mengajar_selesai" id="jam_mengajar_selesai">
                         </div>
                         <div class="col-md-6 mb-3">
@@ -560,8 +552,34 @@ function filterJadwalByDay(dateId, selectId) {
     });
 }
 
-document.addEventListener('DOMContentLoaded', () => filterJadwalByDay('tanggalMonitoring', 'jadwalSelect'));
-document.getElementById('addModal').addEventListener('show.bs.modal', () => filterJadwalByDay('tanggalMonitoring', 'jadwalSelect'));
+// Dropdown "Dilaporkan Oleh": ambil guru piket dari jadwal_piket sesuai tanggal
+var PIKET_MAP = <?= json_encode($piket_map) ?>;
+var ALL_GURU = <?= json_encode($all_guru_map) ?>;
+function populatePelapor() {
+    const sel = document.getElementById('pelaporMonitoring');
+    const hint = document.getElementById('pelaporHintMonitoring');
+    const tgl = document.getElementById('tanggalMonitoring').value;
+    if (!sel) return;
+    sel.innerHTML = '';
+    const ph = document.createElement('option'); ph.value = ''; ph.textContent = '-- Pilih Guru Piket --'; sel.appendChild(ph);
+    const list = PIKET_MAP[tgl] || null;
+    if (list && list.length) {
+        list.forEach(function (g) {
+            const o = document.createElement('option'); o.value = g.id; o.textContent = g.nama; sel.appendChild(o);
+        });
+        hint.textContent = 'Guru piket sesuai jadwal piket tanggal ' + tgl + '.';
+    } else {
+        Object.keys(ALL_GURU).forEach(function (id) {
+            const o = document.createElement('option'); o.value = id; o.textContent = ALL_GURU[id]; sel.appendChild(o);
+        });
+        hint.textContent = 'Belum ada jadwal piket untuk tanggal ini — menampilkan semua guru.';
+    }
+    if (sel.options.length > 1) sel.selectedIndex = 1;
+}
+
+document.addEventListener('DOMContentLoaded', () => { filterJadwalByDay('tanggalMonitoring', 'jadwalSelect'); populatePelapor(); });
+document.getElementById('tanggalMonitoring').addEventListener('change', populatePelapor);
+document.getElementById('addModal').addEventListener('show.bs.modal', () => { filterJadwalByDay('tanggalMonitoring', 'jadwalSelect'); populatePelapor(); });
 </script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
